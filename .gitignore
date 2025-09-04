@@ -1,0 +1,24 @@
+# Entornos virtuales
+.venv/
+myenvname/
+env/
+venv/
+
+# Archivos de configuración de Airflow (si los llegas a usar)
+.airflow_env/
+.airflow_home/
+.airflow/
+
+# Artefactos locales
+__pycache__/
+.ipynb_checkpoints/
+*.db
+*.sqlite
+.env
+.env.*
+
+# Dataset grande (no subir CSVs al repo)
+dataset/
+
+# Configuración de VSCode
+.vscode/
