@@ -1,52 +1,56 @@
-from typing import Dict
-
+import os
 import requests
-from pandas import DataFrame, read_csv, read_json, to_datetime
+import pandas as pd
+from src.config import get_csv_to_table_mapping
+
+def get_public_holidays(url: str, year: int):
+    """
+    Obtiene los días festivos públicos de Brasil desde la API Nager.
+    """
+    try:
+        full_url = f"{url}/{year}/BR"   # URL base + año + país
+        print("DEBUG url:", url)
+        print("DEBUG year:", year)
+        full_url = f"{url}/{year}/BR"
+        print("DEBUG full_url:", full_url)
+        response = requests.get(full_url)
+        response.raise_for_status()
+        data = response.json()
+
+        df = pd.DataFrame(data)
+        df = df.drop(columns=[c for c in ["types", "counties"] if c in df.columns])
+
+        if "date" in df.columns:
+            df["date"] = pd.to_datetime(df["date"])
+
+        return df
+
+    except requests.exceptions.RequestException as e:
+        raise SystemExit(f"API request failed: {e}")
 
 
-def get_public_holidays(public_holidays_url: str, year: str) -> DataFrame:
-    """Get the public holidays for the given year for Brazil.
+def extract(csv_folder: str, csv_table_mapping: dict, public_holidays_url: str):
+    """
+    Lee los CSV de la carpeta dada y obtiene los días festivos públicos.
 
     Args:
-        public_holidays_url (str): url to the public holidays.
-        year (str): The year to get the public holidays for.
-
-    Raises:
-        SystemExit: If the request fails.
+        csv_folder (str): Ruta de la carpeta con los CSVs.
+        csv_table_mapping (dict): Mapeo {archivo_csv: nombre_tabla}.
+        public_holidays_url (str): URL base para API de festivos.
 
     Returns:
-        DataFrame: A dataframe with the public holidays.
+        dict[str, pd.DataFrame]: Diccionario con DataFrames por tabla.
     """
-    # TODO: Implement this function.
-    # You must use the requests library to get the public holidays for the given year.
-    # The url is public_holidays_url/{year}/BR.
-    # You must delete the columns "types" and "counties" from the dataframe.
-    # You must convert the "date" column to datetime.
-    # You must raise a SystemExit if the request fails. Research the raise_for_status
-    # method from the requests library.
-    raise NotImplementedError
+    dataframes = {}
 
+    # Cargar todos los CSV de la carpeta
+    for csv_file, table_name in csv_table_mapping.items():
+        file_path = os.path.join(csv_folder, csv_file)
+        df = pd.read_csv(file_path)
+        dataframes[table_name] = df
 
-def extract(
-    csv_folder: str, csv_table_mapping: Dict[str, str], public_holidays_url: str
-) -> Dict[str, DataFrame]:
-    """Extract the data from the csv files and load them into the dataframes.
-    Args:
-        csv_folder (str): The path to the csv's folder.
-        csv_table_mapping (Dict[str, str]): The mapping of the csv file names to the
-        table names.
-        public_holidays_url (str): The url to the public holidays.
-    Returns:
-        Dict[str, DataFrame]: A dictionary with keys as the table names and values as
-        the dataframes.
-    """
-    dataframes = {
-        table_name: read_csv(f"{csv_folder}/{csv_file}")
-        for csv_file, table_name in csv_table_mapping.items()
-    }
-
-    holidays = get_public_holidays(public_holidays_url, "2017")
-
-    dataframes["public_holidays"] = holidays
+    # Obtener festivos desde la API (con el orden correcto: url primero, luego año)
+    public_holidays = get_public_holidays(public_holidays_url, 2017)
+    dataframes["public_holidays"] = public_holidays
 
     return dataframes
