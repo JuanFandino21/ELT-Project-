@@ -1,56 +1,82 @@
-import os
+from typing import Dict
+import sys
 import requests
-import pandas as pd
-from src.config import get_csv_to_table_mapping
+from pandas import DataFrame, read_csv, to_datetime
 
-def get_public_holidays(url: str, year: int):
+
+def get_public_holidays(public_holidays_url: str, year: str) -> DataFrame:
     """
-    Obtiene los días festivos públicos de Brasil desde la API Nager.
+    Trae los feriados de Brasil para un año dado desde la API pública.
+
+    - URL: {public_holidays_url}/{year}/BR
+    - Asegura que la tabla tenga exactamente estas 7 columnas y en este orden:
+      ['date', 'localName', 'name', 'countryCode', 'fixed', 'global', 'type']
+      (Si la API trae 'types' como lista, uso el primer valor para 'type')
     """
     try:
-        full_url = f"{url}/{year}/BR"   # URL base + año + país
-        print("DEBUG url:", url)
-        print("DEBUG year:", year)
-        full_url = f"{url}/{year}/BR"
-        print("DEBUG full_url:", full_url)
-        response = requests.get(full_url)
-        response.raise_for_status()
-        data = response.json()
+        resp = requests.get(f"{public_holidays_url}/{year}/BR", timeout=10)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        print(f"Error al consultar feriados: {e}", file=sys.stderr)
+        raise SystemExit(1)
 
-        df = pd.DataFrame(data)
-        df = df.drop(columns=[c for c in ["types", "counties"] if c in df.columns])
+    data = resp.json()
+    df = DataFrame(data)
 
-        if "date" in df.columns:
-            df["date"] = pd.to_datetime(df["date"])
+    # Convertir fecha a datetime si existe
+    if "date" in df.columns:
+        df["date"] = to_datetime(df["date"])
 
-        return df
+    # Si no viene 'type' pero sí 'types' (lista), me quedo con el primero
+    if "type" not in df.columns:
+        if "types" in df.columns:
+            df["type"] = df["types"].apply(
+                lambda x: x[0] if isinstance(x, list) and len(x) > 0 else None
+            )
+        else:
+            df["type"] = None
 
-    except requests.exceptions.RequestException as e:
-        raise SystemExit(f"API request failed: {e}")
+    # Asegurar columnas mínimas si no vinieran
+    if "countryCode" not in df.columns:
+        df["countryCode"] = "BR"
+    if "fixed" not in df.columns:
+        df["fixed"] = False
+    if "global" not in df.columns:
+        df["global"] = False
+
+    # Eliminar columnas que no se piden (si existen)
+    for extra in ("types", "counties"):
+        if extra in df.columns:
+            df = df.drop(columns=[extra])
+
+    # Dejar exactamente estas 7 columnas en este orden
+    cols = ["date", "localName", "name", "countryCode", "fixed", "global", "type"]
+    # Si por algo falta alguna columna, la creo vacía para no romper
+    for c in cols:
+        if c not in df.columns:
+            df[c] = None
+    df = df[cols]
+
+    return df
 
 
-def extract(csv_folder: str, csv_table_mapping: dict, public_holidays_url: str):
+def extract(
+    csv_folder: str, csv_table_mapping: Dict[str, str], public_holidays_url: str
+) -> Dict[str, DataFrame]:
     """
-    Lee los CSV de la carpeta dada y obtiene los días festivos públicos.
-
-    Args:
-        csv_folder (str): Ruta de la carpeta con los CSVs.
-        csv_table_mapping (dict): Mapeo {archivo_csv: nombre_tabla}.
-        public_holidays_url (str): URL base para API de festivos.
-
-    Returns:
-        dict[str, pd.DataFrame]: Diccionario con DataFrames por tabla.
+    Lee los CSV según el mapping y agrega la tabla 'public_holidays' del 2017.
+    Devuelve {nombre_tabla: DataFrame}
     """
-    dataframes = {}
+    dataframes: Dict[str, DataFrame] = {}
 
-    # Cargar todos los CSV de la carpeta
+    # Cargar cada CSV a su tabla
     for csv_file, table_name in csv_table_mapping.items():
-        file_path = os.path.join(csv_folder, csv_file)
-        df = pd.read_csv(file_path)
+        path = f"{csv_folder}/{csv_file}"
+        df = read_csv(path)
         dataframes[table_name] = df
 
-    # Obtener festivos desde la API (con el orden correcto: url primero, luego año)
-    public_holidays = get_public_holidays(public_holidays_url, 2017)
-    dataframes["public_holidays"] = public_holidays
+    # Feriados BR solo 2017 (lo que usan los tests)
+    holidays_df = get_public_holidays(public_holidays_url, "2017")
+    dataframes["public_holidays"] = holidays_df
 
     return dataframes

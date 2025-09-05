@@ -171,27 +171,31 @@ def query_freight_value_weight_relationship(database: Engine) -> QueryResult:
 
     # TODO: Merge items, orders and products tables on 'order_id'/'product_id'.
     # We suggest to use pandas.merge() function.
-    # Assign the result to the `data` variable.
-    data = ...
+    # Assign the result to the data variable.
+    data = pd.merge(items, orders, on='order_id', how='inner')
+    data = pd.merge(data, products, on='product_id', how='inner')
 
     # TODO: Get only delivered orders.
-    # Using the previous results from the merge (stored in `data` variable),
+    # Using the previous results from the merge (stored in data variable),
     # apply a boolean mask to keep only the 'delivered' orders.
-    # Assign the result to the variable `delivered`.
-    delivered = ...
+    # Assign the result to the variable delivered.
+    delivered = data[data['order_status'] == 'delivered']
 
     # TODO: Get the sum of freight_value and product_weight_g for each order_id.
     # The same order (identified by 'order_id') can have multiple products inside,
     # then we decided to sum all the products 'freight_value' and 'product_weight_g'
     # inside that order.
-    # Use the pandas DataFrame stored in `delivered` variable. We suggest you to
+    # Use the pandas DataFrame stored in delivered variable. We suggest you to
     # look at pandas.DataFrame.groupby() and pandas.DataFrame.agg() for the data
     # transformation.
-    # Store the result in the `aggregations` variable.
-    aggregations = ...
+    # Store the result in the aggregations variable.
+    aggregations = delivered.groupby('order_id').agg({
+        'freight_value': 'sum',
+        'product_weight_g': 'sum'
+    }).reset_index()
 
     # Keep the code below as it is, this will return the result from
-    # `aggregations` variable with the corresponding name and format.
+    # aggregations variable with the corresponding name and format.
     return QueryResult(query=query_name, result=aggregations)
 
 
@@ -220,44 +224,51 @@ def query_orders_per_day_and_holidays_2017(database: Engine) -> QueryResult:
     orders = read_sql("SELECT * FROM olist_orders", database)
 
     # TODO: Converting the order_purchase_timestamp column to datetime.
-    # Replace the content for the column `order_purchase_timestamp` in the `orders`
+    # Replace the content for the column order_purchase_timestamp in the orders
     # DataFrame with the same data but converted to datetime.
     # We suggest you to read about how to use pd.to_datetime() for this.
-    orders["order_purchase_timestamp"] = ...
+    orders["order_purchase_timestamp"] = pd.to_datetime(orders["order_purchase_timestamp"])
+    holidays["date"] = pd.to_datetime(holidays["date"])
 
     # TODO: Filtering only the order purchase timestamps from the year 2017.
-    # Using the `orders` DataFrame, apply a boolean mask for retrieving all the
+    # Using the orders DataFrame, apply a boolean mask for retrieving all the
     # columns but only the rows corresponding to the year 2017.
-    # Assign the result to a new variable called `filtered_dates`.
-    filtered_dates = ...
+    # Assign the result to a new variable called filtered_dates.
+    filtered_dates = orders[orders['order_purchase_timestamp'].dt.year == 2017]
+
 
     # TODO: Counting the orders per day.
-    # Using the `filtered_dates` DataFrame, count how many orders were made on
+    # Using the filtered_dates DataFrame, count how many orders were made on
     # each day.
-    # Assign the result to the `order_purchase_ammount_per_date` variable.
-    order_purchase_ammount_per_date = ...
+    # Assign the result to the order_purchase_ammount_per_date variable.
+    order_purchase_ammount_per_date = filtered_dates.groupby(filtered_dates['order_purchase_timestamp'].dt.date).size()
 
-    # TODO: Creating a dataframe with the result. Assign it to `result_df` variable.
+    # TODO: Creating a dataframe with the result. Assign it to result_df variable.
     # Now we will create the final DataFrame for the output.
     # This DataFrame must have 3 columns:
     #   - 'order_count': with the number of orders per day, you should be able to get
-    #                    this data from `order_purchase_ammount_per_date` variable.
+    #                    this data from order_purchase_ammount_per_date variable.
     #   - 'date': the corresponding date for each count of orders.
     #   - 'holiday': boolean column having True when that date is a holiday or,
-    #                False otherwise. Use the `holidays` DataFrame for this.
-    result_df = ...
+    #                False otherwise. Use the holidays DataFrame for this.
+    
+    # Convert holidays['date'] to date objects for proper comparison
+    holiday_dates = holidays['date'].dt.date.tolist()
+    
+    result_df = pd.DataFrame({
+        'order_count': order_purchase_ammount_per_date,
+        'date': order_purchase_ammount_per_date.index,
+        'holiday': [date in holiday_dates for date in order_purchase_ammount_per_date.index]
+    })
+    
 
     # Keep the code below as it is, this will return the result from
-    # `aggregations` variable with the corresponding name and format.
+    # aggregations variable with the corresponding name and format.
     return QueryResult(query=query_name, result=result_df)
 
 
 def get_all_queries() -> List[Callable[[Engine], QueryResult]]:
-    """Get all queries.
-
-    Returns:
-        List[Callable[[Engine], QueryResult]]: A list of all queries.
-    """
+    """Get all queries."""
     return [
         query_delivery_date_difference,
         query_global_ammount_order_status,
@@ -272,16 +283,7 @@ def get_all_queries() -> List[Callable[[Engine], QueryResult]]:
 
 
 def run_queries(database: Engine) -> Dict[str, DataFrame]:
-    """Transform data based on the queries. For each query, the query is executed and
-    the result is stored in the dataframe.
-
-    Args:
-        database (Engine): Database connection.
-
-    Returns:
-        Dict[str, DataFrame]: A dictionary with keys as the query file names and
-        values the result of the query as a dataframe.
-    """
+    """Transform data based on the queries."""
     query_results = {}
     for query in get_all_queries():
         query_result = query(database)

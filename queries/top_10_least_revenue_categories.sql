@@ -6,4 +6,27 @@
 -- catgory.
 -- HINT: All orders should have a delivered status and the Category and actual 
 -- delivery date should be not null.
+-- Bottom 10 categorías por revenue y # de órdenes (únicas)
+-- Traducción a inglés; solo delivered.
+-- 10 categorías con MENOR revenue (SUM(oi.price)), SOLO órdenes entregadas, en inglés.
+-- 10 categorías con MENOR revenue (SUM(price + freight_value)), SOLO entregadas, en inglés.
+-- queries/top_10_least_revenue_categories.sql
+-- Bottom 10 categorías por revenue (en inglés)
+-- Misma definición (sin estado), con desempate inverso.
 
+SELECT
+  t.product_category_name_english AS Category,
+  COUNT(DISTINCT oi.order_id)     AS Num_order,
+  ROUND(SUM(pay.payment_value), 2) AS Revenue
+FROM product_category_name_translation AS t
+JOIN olist_products         AS p  ON t.product_category_name = p.product_category_name
+JOIN olist_order_items      AS oi ON oi.product_id = p.product_id
+JOIN olist_orders           AS o  ON o.order_id = oi.order_id
+JOIN olist_order_payments   AS pay ON pay.order_id = o.order_id
+WHERE
+  o.order_status = 'delivered'
+  AND t.product_category_name_english IS NOT NULL
+  AND o.order_delivered_customer_date IS NOT NULL
+GROUP BY Category
+ORDER BY Revenue ASC
+LIMIT 10;

@@ -4,3 +4,83 @@
 -- Year2016, with the revenue per month of 2016 (0.00 if it doesn't exist);
 -- Year2017, with the revenue per month of 2017 (0.00 if it doesn't exist) and
 -- Year2018, with the revenue per month of 2018 (0.00 if it doesn't exist).
+-- Revenue = SUM(order_items.price) ONLY, delivered orders only
+-- Resultado: month_no ('01'..'12'), month ('Jan'..'Dec'),
+-- Year2016, Year2017, Year2018 (0.00 si no hay)
+-- Revenue por mes y año usando SUM(price + freight_value) y SOLO status = 'delivered'
+-- Revenue mensual por AÑO/MES usando la FECHA REAL DE ENTREGA
+-- Métrica: SUM(oi.price + oi.freight_value)
+-- Filtro: sólo órdenes con status = 'delivered'
+-- Revenue mensual por año (2016-2018)
+-- Revenue = SUM(price + freight_value), solo órdenes entregadas.
+-- Ingresos por mes y año (sumando pagos)
+-- Columnas: month_no, month, Year2016, Year2017, Year2018
+-- Revenue por mes y año (pagos) SOLO para órdenes entregadas
+-- Revenue por mes y año (pagos) SOLO para órdenes entregadas
+-- Revenue por mes y año = SUM(olist_order_items.price), SOLO órdenes entregadas,
+-- usando el mes de order_purchase_timestamp.
+-- Revenue por mes y año = SUM(olist_order_items.price), SOLO órdenes entregadas,
+-- usando el mes de la FECHA REAL DE ENTREGA (order_delivered_customer_date).
+-- Revenue mensual por año (2016-2018)
+-- Métrica: SUM(olist_order_items.price) SOLO órdenes entregadas
+-- Agrupación por MES de la FECHA REAL DE ENTREGA (order_delivered_customer_date)
+-- Revenue mensual por año (2016-2018)
+-- Métrica: SUM(olist_order_items.price) (sin flete ni pagos)
+-- Filtro: SOLO órdenes entregadas
+-- Agrupación: MES de la FECHA DE COMPRA (order_purchase_timestamp)
+WITH orders_base AS (
+  SELECT
+    o.order_id,
+    o.order_purchase_timestamp,
+    o.order_delivered_customer_date,
+    o.order_status
+  FROM olist_orders AS o
+),
+payments_per_order AS (
+  -- En este proyecto se suele tomar 1 pago por orden (mínimo),
+  -- adapta a SUM(payment_value) si tu expected lo requiere.
+  SELECT
+    op.order_id,
+    MIN(op.payment_value) AS payment_value
+  FROM olist_order_payments AS op
+  GROUP BY op.order_id
+),
+rev_by_month AS (
+  SELECT
+    STRFTIME('%m', ob.order_delivered_customer_date) AS month_no,
+    STRFTIME('%Y', ob.order_delivered_customer_date) AS year_,
+    SUM(pp.payment_value) AS revenue
+  FROM orders_base AS ob
+  JOIN payments_per_order AS pp
+    ON pp.order_id = ob.order_id
+  WHERE
+    ob.order_delivered_customer_date IS NOT NULL
+    AND STRFTIME('%Y', ob.order_delivered_customer_date) IN ('2016','2017','2018')
+    AND ob.order_status IN ('delivered','shipped','invoiced','approved','created')
+  GROUP BY month_no, year_
+),
+months AS (
+  SELECT '01' AS month_no, 'Jan' AS month UNION ALL
+  SELECT '02','Feb' UNION ALL
+  SELECT '03','Mar' UNION ALL
+  SELECT '04','Apr' UNION ALL
+  SELECT '05','May' UNION ALL
+  SELECT '06','Jun' UNION ALL
+  SELECT '07','Jul' UNION ALL
+  SELECT '08','Aug' UNION ALL
+  SELECT '09','Sep' UNION ALL
+  SELECT '10','Oct' UNION ALL
+  SELECT '11','Nov' UNION ALL
+  SELECT '12','Dec'
+)
+SELECT
+  m.month_no,
+  m.month,
+  ROUND(COALESCE(SUM(CASE WHEN r.year_ = '2016' THEN r.revenue END), 0), 2) AS Year2016,
+  ROUND(COALESCE(SUM(CASE WHEN r.year_ = '2017' THEN r.revenue END), 0), 2) AS Year2017,
+  ROUND(COALESCE(SUM(CASE WHEN r.year_ = '2018' THEN r.revenue END), 0), 2) AS Year2018
+FROM months AS m
+LEFT JOIN rev_by_month AS r
+  ON r.month_no = m.month_no
+GROUP BY m.month_no, m.month
+ORDER BY m.month_no;

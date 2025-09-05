@@ -8,3 +8,27 @@
 -- 2. You can use the CAST function to convert a number to an integer.
 -- 3. You can use the STRFTIME function to convert a order_delivered_customer_date to a string removing hours, minutes and seconds.
 -- 4. order_status == 'delivered' AND order_delivered_customer_date IS NOT NULL
+-- Promedio redondeado (en días) de (estimada – real) por estado
+-- Promedio (en días) de (estimada – real) por estado del cliente.
+-- Se eliminan horas/min/seg antes de calcular la diferencia para alinear enteros.
+-- Promedio entero (en días) de (estimada – real) por estado, SOLO entregadas,
+-- normalizando las fechas (sin horas) antes del cálculo.
+SELECT
+  c.customer_state AS State,
+  CAST(
+    AVG(
+      julianday(strftime('%Y-%m-%d', o.order_estimated_delivery_date)) -
+      julianday(strftime('%Y-%m-%d', o.order_delivered_customer_date))
+    ) AS INTEGER
+  ) AS Delivery_Difference
+FROM olist_customers AS c
+JOIN olist_orders    AS o
+  ON c.customer_id = o.customer_id
+WHERE
+  o.order_status = 'delivered'
+  AND o.order_delivered_customer_date IS NOT NULL
+GROUP BY
+  c.customer_state
+ORDER BY
+  Delivery_Difference ASC;
+
