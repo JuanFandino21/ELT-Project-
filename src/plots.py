@@ -173,15 +173,17 @@ def plot_top_10_revenue_categories(df: DataFrame):
     fig.show()
 
 
-def plot_freight_value_weight_relationship(df: DataFrame):
-    """Plot freight value weight relationship
+def plot_freight_value_weight_relationship(df):
+    """Plot freight value vs product weight"""
 
-    Args:
-        df (DataFrame): Dataframe with freight value weight relationship query result
-    """
-    # TODO: plot freight value weight relationship using seaborn scatterplot.
-    # Your x-axis should be weight and, y-axis freight value.
-    raise NotImplementedError
+    plt.figure(figsize=(10,6))
+    sns.scatterplot(x=df["product_weight_g"], y=df["freight_value"], alpha=0.5)
+
+    plt.title("Freight Value vs Product Weight")
+    plt.xlabel("Product Weight (g)")
+    plt.ylabel("Freight Value")
+    plt.tight_layout()
+    plt.show()
 
 
 def plot_delivery_date_difference(df: DataFrame):
@@ -195,13 +197,26 @@ def plot_delivery_date_difference(df: DataFrame):
     )
 
 
-def plot_order_amount_per_day_with_holidays(df: DataFrame):
+def plot_order_amount_per_day_with_holidays(df):
     """Plot order amount per day with holidays
-
+    
     Args:
         df (DataFrame): Dataframe with order amount per day with holidays query result
     """
-    # TODO: plot order amount per day with holidays using matplotlib.
-    # Mark holidays with vertical lines.
-    # Hint: use plt.axvline.
-    raise NotImplementedError
+    plt.figure(figsize=(12,6))
+
+    # Dibujar la cantidad de órdenes por día
+    plt.plot(df['date'], df['order_count'], label='Orders per day', color='blue')
+
+    # Marcar los días que son festivos con líneas verticales
+    holiday_dates = df[df['holiday'] == True]['date']
+    for hday in holiday_dates:
+        plt.axvline(x=hday, color='red', linestyle='--', alpha=0.5)
+
+    # Títulos y etiquetas
+    plt.title("Orders per day with Holidays (2017)")
+    plt.xlabel("Date")
+    plt.ylabel("Number of Orders")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()

@@ -5,25 +5,28 @@ from sqlalchemy.engine.base import Engine
 
 
 def load(data_frames: Dict[str, DataFrame], database: Engine):
-    """Load the dataframes into the sqlite database.
+    """
+    Carga los dataframes dentro de la base de datos sqlite.
 
     Args:
-        data_frames (Dict[str, DataFrame]): A dictionary with keys as the table names
-        and values as the dataframes.
+        data_frames (Dict[str, DataFrame]): diccionario con el nombre de la tabla
+        como clave y el dataframe como valor.
+        database (Engine): conexión a la base de datos.
     """
-    # Get the raw connection for pandas compatibility
-    import sqlite3
+    import sqlite3  # uso sqlite3 directo porque pandas lo maneja bien así
     
-    # Extract the database path from the engine URL
+    # La ruta de la base de datos se puede sacar del engine
     database_url = str(database.url)
+    
+    # Si es una base SQLite de archivo
     if "sqlite:///" in database_url:
         db_path = database_url.replace("sqlite:///", "")
         
-        # Use direct sqlite3 connection for pandas
+        # Me conecto directo con sqlite3 y voy guardando cada dataframe
         with sqlite3.connect(db_path) as conn:
             for table_name, df in data_frames.items():
-                df.to_sql(name=table_name, con=conn, if_exists='replace', index=False)
+                df.to_sql(name=table_name, con=conn, if_exists="replace", index=False)
     else:
-        # Fallback to engine for non-SQLite databases
+        # Si no es SQLite, entonces uso el engine normal
         for table_name, df in data_frames.items():
-            df.to_sql(name=table_name, con=database, if_exists='replace', index=False)
+            df.to_sql(name=table_name, con=database, if_exists="replace", index=False)
